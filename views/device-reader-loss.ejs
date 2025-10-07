@@ -33,7 +33,7 @@
   </style>
 </head>
 <body>
-  <h1>Device Reader Loss<span class="refresh-indicator" id="refreshIndicator">●</span></h1>
+  <h1>Device Reader Loss</h1>
   <div style="margin: 8px 0 16px;">
     <a href="/api/service/storage_event/view">← Go to Storage Event</a>
   </div>
@@ -83,7 +83,7 @@
         <% }); %>
       <% } else { %>
         <tr>
-          <td colspan="6" class="muted">No devices provided.</td>
+          <td colspan="7" class="muted"><%= !data ? 'No data available yet. Waiting for data...' : 'No devices provided.' %></td>
         </tr>
       <% } %>
     </tbody>
@@ -92,7 +92,7 @@
   <script>
     // Auto-refresh functionality
     const REFRESH_INTERVAL = 5000; // 5 seconds
-    let lastDatetime = '<%= data && data.datetime ? data.datetime : "" %>';
+    let lastData = null;
 
     async function fetchAndUpdate() {
       try {
@@ -101,10 +101,19 @@
         
         const newData = await response.json();
         
-        // Check if data has changed
-        if (newData.datetime && newData.datetime !== lastDatetime) {
-          lastDatetime = newData.datetime;
+        // Skip if response indicates no data
+        if (newData.message) {
+          return;
+        }
+        
+        // Check if data has changed by comparing JSON strings
+        const newDataStr = JSON.stringify(newData);
+        const lastDataStr = JSON.stringify(lastData);
+        
+        if (newDataStr !== lastDataStr) {
+          lastData = newData;
           updatePage(newData);
+          console.log('Page updated with new data at', new Date().toLocaleTimeString());
         }
       } catch (error) {
         console.error('Error fetching device reader loss:', error);

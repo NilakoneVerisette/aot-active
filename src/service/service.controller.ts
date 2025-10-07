@@ -56,10 +56,7 @@ export class ServiceController {
   @Get('storage_event/view')
   renderSavedStorageEvent(@Res() res: Response) {
     const data = this.serviceService.getStorageEvent();
-    if (!data) {
-      return res.status(404).send('No storage event saved yet');
-    }
-    return res.render('storage-event', { data });
+    return res.render('storage-event', { data: data || null });
   }
 
   // DEVICE READER LOSS ENDPOINTS
@@ -105,10 +102,7 @@ export class ServiceController {
   @Get('device_reader_loss/view')
   renderDeviceReaderLoss(@Res() res: Response) {
     const data = this.serviceService.getDeviceReaderLoss();
-    if (!data) {
-      return res.status(404).send('No device reader loss saved yet');
-    }
-    return res.render('device-reader-loss', { data });
+    return res.render('device-reader-loss', { data: data || null });
   }
 
   @Get()
