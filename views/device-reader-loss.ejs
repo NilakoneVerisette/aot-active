@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Device Reader Loss</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; }
+    h1 { margin: 0 0 8px; }
+    .sub { color: #666; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; font-size: 14px; vertical-align: top; }
+    th { background: #f6f6f6; text-align: left; }
+    tr:nth-child(even) { background: #fafafa; }
+    .status { font-weight: 600; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .OFFLINE { background: #ffe5e5; color: #b00020; }
+    .ONLINE { background: #e7f7eb; color: #0f7b24; }
+    .muted { color: #888; font-size: 12px; }
+    .nested { margin: 0; padding: 0; list-style: none; }
+    .nested li { margin: 0 0 4px; }
+    .chip { display: inline-block; background: #f0f0f0; padding: 2px 6px; border-radius: 12px; font-size: 12px; }
+    .refresh-indicator { 
+      display: inline-block; 
+      margin-left: 8px; 
+      color: #0066cc; 
+      font-size: 12px; 
+      animation: pulse 2s infinite; 
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Device Reader Loss<span class="refresh-indicator" id="refreshIndicator">●</span></h1>
+  <div style="margin: 8px 0 16px;">
+    <a href="/api/service/storage_event/view">← Go to Storage Event</a>
+  </div>
+  <div class="sub">Datetime: <strong id="datetime"><%= data && data.datetime ? data.datetime : '-' %></strong></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Location</th>
+        <th>Description</th>
+        <th>IP</th>
+        <th>Device ID</th>
+        <th>Current Status</th>
+        <th>Last Status History</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (data && Array.isArray(data.devices) && data.devices.length) { %>
+        <% data.devices.forEach(function(item, idx) { %>
+          <tr>
+            <td><%= idx + 1 %></td>
+            <td><%= item.location ?? '' %></td>
+            <td><%= item.location_desc ?? '' %></td>
+            <td><code><%= item.ip ?? '' %></code></td>
+            <td><code><%= item.device_id ?? '' %></code></td>
+            <td>
+              <% const status = (item.current_status || '').toUpperCase(); %>
+              <span class="status <%= status %>"><%= status || '-' %></span>
+            </td>
+            <td>
+              <% if (Array.isArray(item.last_status) && item.last_status.length) { %>
+                <ul class="nested">
+                  <% item.last_status.forEach(function(h) { %>
+                    <li>
+                      <strong class="status"><%= (h.status || '').toUpperCase() %></strong>
+                      &nbsp;at&nbsp;
+                      <span class="chip"><%= h.datetime || '-' %></span>
+                    </li>
+                  <% }) %>
+                </ul>
+              <% } else { %>
+                <span class="muted">No history</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      <% } else { %>
+        <tr>
+          <td colspan="6" class="muted">No devices provided.</td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+
+  <script>
+    // Auto-refresh functionality
+    const REFRESH_INTERVAL = 5000; // 5 seconds
+    let lastDatetime = '<%= data && data.datetime ? data.datetime : "" %>';
+
+    async function fetchAndUpdate() {
+      try {
+        const response = await fetch('/api/service/device_reader_loss');
+        if (!response.ok) throw new Error('Failed to fetch');
+        
+        const newData = await response.json();
+        
+        // Check if data has changed
+        if (newData.datetime && newData.datetime !== lastDatetime) {
+          lastDatetime = newData.datetime;
+          updatePage(newData);
+        }
+      } catch (error) {
+        console.error('Error fetching device reader loss:', error);
+      }
+    }
+
+    function updatePage(data) {
+      // Update datetime
+      const datetimeEl = document.getElementById('datetime');
+      if (datetimeEl) {
+        datetimeEl.textContent = data.datetime || '-';
+      }
+
+      // Update table body
+      const tbody = document.querySelector('tbody');
+      if (!tbody) return;
+
+      if (data.devices && Array.isArray(data.devices) && data.devices.length > 0) {
+        tbody.innerHTML = data.devices.map((item, idx) => {
+          const status = (item.current_status || '').toUpperCase();
+          let historyHtml = '';
+          
+          if (item.last_status && Array.isArray(item.last_status) && item.last_status.length > 0) {
+            historyHtml = '<ul class="nested">' + 
+              item.last_status.map(h => `
+                <li>
+                  <strong class="status">${(h.status || '').toUpperCase()}</strong>
+                  &nbsp;at&nbsp;
+                  <span class="chip">${h.datetime || '-'}</span>
+                </li>
+              `).join('') + 
+              '</ul>';
+          } else {
+            historyHtml = '<span class="muted">No history</span>';
+          }
+
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${item.location ?? ''}</td>
+              <td>${item.location_desc ?? ''}</td>
+              <td><code>${item.ip ?? ''}</code></td>
+              <td><code>${item.device_id ?? ''}</code></td>
+              <td>
+                <span class="status ${status}">${status || '-'}</span>
+              </td>
+              <td>${historyHtml}</td>
+            </tr>
+          `;
+        }).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="7" class="muted">No devices provided.</td></tr>';
+      }
+
+      // Flash the refresh indicator
+      const indicator = document.getElementById('refreshIndicator');
+      if (indicator) {
+        indicator.style.color = '#00cc00';
+        setTimeout(() => {
+          indicator.style.color = '#0066cc';
+        }, 300);
+      }
+    }
+
+    // Start auto-refresh
+    setInterval(fetchAndUpdate, REFRESH_INTERVAL);
+    console.log('Auto-refresh enabled: checking for updates every', REFRESH_INTERVAL / 1000, 'seconds');
+  </script>
+</body>
+</html>
